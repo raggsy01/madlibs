@@ -1,1 +1,32 @@
-
+name: Deploy to main
+on:
+  push:
+      branches:
+      - main
+ 
+jobs:
+  build:
+runs-on: ubuntu-latest
+ 
+- name: Checkout source code
+  uses: actions/checkout@v2
+ 
+    - name: Deploy to Server
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      USERNAME: ${{ secrets.DEPLOY_USERNAME }}
+      HOST: ${{ secrets.DEPLOY_HOST }}
+    run: |
+      echo "$SSH_PRIVATE_KEY" > private_key.pem
+      chmod 600 private_key.pem
+      ssh -i private_key.pem -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+        mkdir -p /home/$USERNAME/app
+        pkill -f "python3 madlibs.py" || true
+      EOF
+      scp -i private_key.pem -o StrictHostKeyChecking=no -r ./* $USERNAME@$HOST:/home/$USERNAME/app
+      ssh -i private_key.pem -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+        cd /home/$USERNAME/app
+        python3 -m pip install flask
+        nohup python3 madlibs.py >> app.log 2>&1 &
+        disown
+      EOF
